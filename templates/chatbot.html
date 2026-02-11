@@ -149,6 +149,26 @@
             cursor: pointer;
         }
         .example-chip:hover { background: #667eea; color: white; }
+        .booking-card {
+            background: #e7f3ff;
+            border: 2px solid #667eea;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 12px 0;
+        }
+        .booking-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border-radius: 20px;
+            text-decoration: none;
+            margin: 8px 8px 8px 0;
+            cursor: pointer;
+            border: none;
+            font-size: 14px;
+        }
+        .booking-btn:hover { background: #5568d3; }
     </style>
 </head>
 <body>
@@ -180,8 +200,8 @@
         <div class="examples">
             <strong>Try:</strong>
             <span class="example-chip" onclick="askExample('What causes high blood pressure?')">What causes high blood pressure?</span>
-            <span class="example-chip" onclick="askExample('What is diabetes?')">What is diabetes?</span>
-            <span class="example-chip" onclick="askExample('Side effects of aspirin?')">Side effects of aspirin?</span>
+            <span class="example-chip" onclick="askExample('I have a fever and sore throat')">I have a fever and sore throat</span>
+            <span class="example-chip" onclick="askExample('Book an appointment')">📅 Book appointment</span>
         </div>
         <div class="input-area">
             <div class="input-group">
@@ -322,13 +342,36 @@
             messages.scrollTop = messages.scrollHeight;
         }
 
-        async function sendMessage() {
+        function showBookingCard(specialty, slots) {
+            const messages = document.getElementById('messages');
+            const card = document.createElement('div');
+            card.className = 'booking-card';
+            
+            let html = `<strong>📅 Quick Booking Available</strong><br><br>`;
+            html += `<button class="booking-btn" onclick="bookAppointment()">📞 Book ${specialty} Appointment</button>`;
+            html += `<button class="booking-btn" onclick="window.open('https://chroniccare.com/book', '_blank')">🌐 Visit Chronic Care</button>`;
+            
+            card.innerHTML = html;
+            messages.appendChild(card);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function bookAppointment() {
+            addMessage('user', 'I want to book an appointment');
+            sendMessage('book appointment', true);
+        }
+
+        async function sendMessage(customMessage = null, skipInput = false) {
             const input = document.getElementById('message');
-            const message = input.value.trim();
+            const message = customMessage || input.value.trim();
             if (!message) return;
 
-            addMessage('user', message);
-            input.value = '';
+            if (!skipInput) {
+                addMessage('user', message);
+            }
+            if (!customMessage) {
+                input.value = '';
+            }
 
             const btn = document.getElementById('sendBtn');
             btn.disabled = true;
@@ -347,8 +390,14 @@
                     addMessage('assistant', `❌ Error: ${data.error}`);
                 } else {
                     addMessage('assistant', data.response, data.is_emergency, data.severity || 'low');
+                    
                     if (data.patient_context) {
                         updatePatientContext(data.patient_context);
+                    }
+                    
+                    // Show booking card if suggested
+                    if (data.show_booking && !data.is_emergency) {
+                        showBookingCard(data.booking_specialty || 'Doctor', data.booking_slots || []);
                     }
                 }
             } catch (error) {

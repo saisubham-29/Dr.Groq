@@ -1,6 +1,8 @@
 import os
+import re
 from openai import OpenAI
 from dotenv import load_dotenv
+from typing import List
 
 load_dotenv()
 
@@ -16,6 +18,7 @@ class MedicalChatbot:
         self.model = model
         self.conversation_history = []
         self.patient_context = {}
+        self.symptoms = []  # Track symptoms for booking
         
         self.system_prompt = """You are an empathetic medical AI assistant. Follow these rules:
 
@@ -37,19 +40,24 @@ class MedicalChatbot:
    - Recommend when to see a doctor
    - Flag serious symptoms immediately
 
-4. SAFETY & GUARDRAILS:
+4. APPOINTMENT BOOKING:
+   - When user needs to see a doctor, offer to help book appointment
+   - Suggest appropriate specialty based on symptoms/conditions
+   - Provide booking options through Chronic Care
+
+5. SAFETY & GUARDRAILS:
    - RED FLAGS (seek immediate care): chest pain, difficulty breathing, severe bleeding, sudden severe headache, confusion, loss of consciousness, severe abdominal pain, signs of stroke
    - YELLOW FLAGS (see doctor soon): persistent fever, worsening symptoms, symptoms lasting >1 week
    - Never diagnose or prescribe prescription medication
    - Can suggest OTC remedies (e.g., "You might consider acetaminophen for fever, but check with pharmacist")
 
-5. HOME CARE SUGGESTIONS:
+6. HOME CARE SUGGESTIONS:
    - Rest, hydration, nutrition
    - OTC medications (with cautions)
    - When to monitor symptoms
    - Warning signs to watch for
 
-6. MULTILINGUAL:
+7. MULTILINGUAL:
    - Detect and respond in user's language
    - Maintain medical accuracy
 
@@ -58,8 +66,9 @@ Be warm, thorough, and safety-focused."""
     def chat(self, user_message: str) -> dict:
         """Process user message and return response"""
         
-        # Extract patient context from message
+        # Extract patient context and symptoms
         self._extract_patient_context(user_message)
+        self._extract_symptoms(user_message)
         
         # Check for emergency keywords
         emergency_keywords = ["chest pain", "can't breathe", "can not breathe", "cannot breathe",
@@ -70,7 +79,8 @@ Be warm, thorough, and safety-focused."""
             return {
                 "response": "🚨 **EMERGENCY ALERT**\n\nThis sounds like a medical emergency. Please:\n\n1. **Call emergency services immediately** (911 in US, 112 in EU, or your local emergency number)\n2. **Go to the nearest emergency room**, or\n3. **Call your doctor immediately**\n\nDo not wait. Seek help now.",
                 "is_emergency": True,
-                "severity": "critical"
+                "severity": "critical",
+                "show_booking": False
             }
         
         # Build context-aware message
@@ -101,6 +111,9 @@ Be warm, thorough, and safety-focused."""
             # Determine severity
             severity = self._assess_severity(assistant_message)
             
+            # Check if booking should be offered
+            show_booking = self._should_offer_booking(assistant_message, severity)
+            
             # Add assistant response to history
             self.conversation_history.append({"role": "assistant", "content": assistant_message})
             
@@ -108,14 +121,17 @@ Be warm, thorough, and safety-focused."""
                 "response": assistant_message,
                 "is_emergency": False,
                 "severity": severity,
-                "patient_context": self.patient_context
+                "patient_context": self.patient_context,
+                "show_booking": show_booking,
+                "symptoms": self.symptoms
             }
             
         except Exception as e:
             return {
                 "response": f"Error: {str(e)}",
                 "is_emergency": False,
-                "severity": "none"
+                "severity": "none",
+                "show_booking": False
             }
     
     def _extract_patient_context(self, message: str):
@@ -164,7 +180,31 @@ Be warm, thorough, and safety-focused."""
         
         return " | ".join(parts)
     
-    def _assess_severity(self, response: str) -> str:
+    def _extract_symptoms(self, message: str):
+        """Extract symptoms from message"""
+        symptom_keywords = [
+            'pain', 'ache', 'fever', 'cough', 'nausea', 'vomit', 'dizzy',
+            'headache', 'fatigue', 'weakness', 'bleeding', 'rash', 'swelling',
+            'breathing', 'chest', 'stomach', 'throat', 'sore', 'hurt'
+        ]
+        
+        msg_lower = message.lower()
+        for symptom in symptom_keywords:
+            if symptom in msg_lower and symptom not in self.symptoms:
+                self.symptoms.append(symptom)
+    
+    def _should_offer_booking(self, response: str, severity: str) -> bool:
+        """Determine if appointment booking should be offered"""
+        response_lower = response.lower()
+        
+        # Offer booking if medium/high severity or doctor mentioned
+        booking_triggers = [
+            'see a doctor', 'consult', 'medical attention', 'appointment',
+            'visit doctor', 'healthcare provider'
+        ]
+        
+        return (severity in ['medium', 'high'] or 
+                any(trigger in response_lower for trigger in booking_triggers))
         """Assess severity from response"""
         response_lower = response.lower()
         
@@ -179,7 +219,12 @@ Be warm, thorough, and safety-focused."""
         """Clear conversation history"""
         self.conversation_history = []
         self.patient_context = {}
+        self.symptoms = []
     
     def get_patient_context(self) -> dict:
         """Get current patient context"""
         return self.patient_context
+    
+    def get_symptoms(self) -> List[str]:
+        """Get tracked symptoms"""
+        return self.symptoms
