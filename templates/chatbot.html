@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical AI Chatbot</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-left h1 { font-size: 24px; margin-bottom: 5px; }
+        .header-left p { font-size: 13px; opacity: 0.9; }
+        .reset-btn {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .reset-btn:hover { background: rgba(255,255,255,0.3); }
+        .disclaimer {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px 16px;
+            font-size: 12px;
+            color: #856404;
+        }
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 80%;
+            animation: fadeIn 0.3s;
+            line-height: 1.6;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .user { background: #667eea; color: white; margin-left: auto; }
+        .assistant { background: white; border: 1px solid #e0e0e0; }
+        .emergency { background: #f8d7da; border: 2px solid #dc3545; color: #721c24; font-weight: 600; }
+        .severity-high { border-left: 4px solid #dc3545; }
+        .severity-medium { border-left: 4px solid #ffc107; }
+        .severity-low { border-left: 4px solid #28a745; }
+        .context-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            margin: 4px 4px 4px 0;
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 12px;
+            font-size: 11px;
+            color: #004085;
+        }
+        .patient-context {
+            padding: 10px 20px;
+            background: #e7f3ff;
+            border-bottom: 1px solid #b3d9ff;
+            font-size: 13px;
+        }
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+        }
+        input:focus { border-color: #667eea; }
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .voice-btn {
+            width: 45px;
+            height: 45px;
+            padding: 0;
+            border-radius: 50%;
+            font-size: 18px;
+        }
+        .voice-btn.recording {
+            background: #dc3545;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .examples {
+            padding: 10px 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e0e0e0;
+            font-size: 12px;
+            color: #666;
+        }
+        .example-chip {
+            display: inline-block;
+            padding: 4px 10px;
+            margin: 4px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+        .example-chip:hover { background: #667eea; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>🩺 Medical AI Assistant</h1>
+                <p>Ask about symptoms, diseases, medications, or general health</p>
+            </div>
+            <button class="reset-btn" onclick="resetChat()">🔄 New Chat</button>
+        </div>
+        <div class="disclaimer">
+            ⚠️ <strong>Disclaimer:</strong> This is an AI assistant for educational purposes only. Not a substitute for professional medical advice. For emergencies, call emergency services.
+        </div>
+        <div class="patient-context" id="patientContext" style="display: none;">
+            <strong>Patient Info:</strong> <span id="contextDisplay"></span>
+        </div>
+        <div class="messages" id="messages">
+            <div class="message assistant">
+                Hello! I'm your medical AI assistant. I can help answer questions about:
+                <br>• Symptoms and conditions
+                <br>• Medications and treatments
+                <br>• Lab values and test results
+                <br>• General health information
+                <br><br><strong>To help you better, please share:</strong> Your age, any existing conditions, and current medications.
+                <br><br>I support multiple languages and voice input. How can I help you today?
+            </div>
+        </div>
+        <div class="examples">
+            <strong>Try:</strong>
+            <span class="example-chip" onclick="askExample('What causes high blood pressure?')">What causes high blood pressure?</span>
+            <span class="example-chip" onclick="askExample('What is diabetes?')">What is diabetes?</span>
+            <span class="example-chip" onclick="askExample('Side effects of aspirin?')">Side effects of aspirin?</span>
+        </div>
+        <div class="input-area">
+            <div class="input-group">
+                <button class="voice-btn" onclick="toggleVoice()" id="voiceBtn" title="Voice input">🎤</button>
+                <input type="text" id="message" placeholder="Type your medical question..." onkeypress="if(event.key==='Enter') sendMessage()">
+                <button onclick="sendMessage()" id="sendBtn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let recognition = null;
+        let isRecording = false;
+
+        // Initialize speech recognition
+        function initSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window) {
+                recognition = new webkitSpeechRecognition();
+            } else if ('SpeechRecognition' in window) {
+                recognition = new SpeechRecognition();
+            } else {
+                console.log('Speech recognition not supported');
+                return false;
+            }
+
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                console.log('Speech recognition started');
+                isRecording = true;
+                document.getElementById('voiceBtn').classList.add('recording');
+                document.getElementById('voiceBtn').textContent = '⏹️';
+            };
+
+            recognition.onresult = (event) => {
+                console.log('Speech recognition result:', event);
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('message').value = transcript;
+                console.log('Transcript:', transcript);
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                let errorMsg = 'Voice input error: ';
+                switch(event.error) {
+                    case 'no-speech':
+                        errorMsg += 'No speech detected. Please try again.';
+                        break;
+                    case 'audio-capture':
+                        errorMsg += 'Microphone not found or not working.';
+                        break;
+                    case 'not-allowed':
+                        errorMsg += 'Microphone permission denied. Please allow microphone access.';
+                        break;
+                    default:
+                        errorMsg += event.error;
+                }
+                alert(errorMsg);
+                stopRecording();
+            };
+
+            recognition.onend = () => {
+                console.log('Speech recognition ended');
+                stopRecording();
+            };
+
+            return true;
+        }
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const supported = initSpeechRecognition();
+            if (!supported) {
+                document.getElementById('voiceBtn').style.opacity = '0.3';
+                document.getElementById('voiceBtn').title = 'Voice input not supported in this browser';
+            }
+        });
+
+        function toggleVoice() {
+            if (!recognition) {
+                alert('Voice input not supported in this browser. Please use Chrome or Edge.');
+                return;
+            }
+
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                try {
+                    recognition.start();
+                } catch (error) {
+                    console.error('Error starting recognition:', error);
+                    alert('Could not start voice input. Make sure microphone permissions are granted.');
+                }
+            }
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            const btn = document.getElementById('voiceBtn');
+            if (btn) {
+                btn.classList.remove('recording');
+                btn.textContent = '🎤';
+            }
+        }
+
+        function updatePatientContext(context) {
+            if (!context || Object.keys(context).length === 0) {
+                document.getElementById('patientContext').style.display = 'none';
+                return;
+            }
+
+            let parts = [];
+            if (context.age) parts.push(`Age: ${context.age}`);
+            if (context.conditions) parts.push(`Conditions: ${context.conditions.join(', ')}`);
+            if (context.medications) parts.push(`Medications: ${context.medications.join(', ')}`);
+
+            if (parts.length > 0) {
+                document.getElementById('contextDisplay').innerHTML = parts.join(' | ');
+                document.getElementById('patientContext').style.display = 'block';
+            }
+        }
+
+        function addMessage(role, content, isEmergency = false, severity = 'low') {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            
+            let className = `message ${isEmergency ? 'emergency' : role}`;
+            if (!isEmergency && role === 'assistant') {
+                className += ` severity-${severity}`;
+            }
+            
+            div.className = className;
+            div.innerHTML = content.replace(/\n/g, '<br>');
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('message');
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessage('user', message);
+            input.value = '';
+
+            const btn = document.getElementById('sendBtn');
+            btn.disabled = true;
+            btn.textContent = '...';
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    addMessage('assistant', `❌ Error: ${data.error}`);
+                } else {
+                    addMessage('assistant', data.response, data.is_emergency, data.severity || 'low');
+                    if (data.patient_context) {
+                        updatePatientContext(data.patient_context);
+                    }
+                }
+            } catch (error) {
+                addMessage('assistant', `❌ Error: ${error.message}`);
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Send';
+        }
+
+        async function resetChat() {
+            if (!confirm('Start a new conversation? This will clear patient context.')) return;
+            
+            await fetch('/reset', { method: 'POST' });
+            document.getElementById('messages').innerHTML = `
+                <div class="message assistant">
+                    Hello! I'm your medical AI assistant. To help you better, please share: Your age, any existing conditions, and current medications. How can I help you today?
+                </div>
+            `;
+            document.getElementById('patientContext').style.display = 'none';
+        }
+
+        function askExample(question) {
+            document.getElementById('message').value = question;
+            sendMessage();
+        }
+    </script>
+</body>
+</html>
