@@ -41,9 +41,10 @@ class MedicalChatbot:
    - Flag serious symptoms immediately
 
 4. APPOINTMENT BOOKING:
-   - When user needs to see a doctor, offer to help book appointment
-   - Suggest appropriate specialty based on symptoms/conditions
-   - Provide booking options through Chronic Care
+   - Only help with booking when user explicitly requests it
+   - User must ask to "book appointment" or "schedule appointment"
+   - Do NOT automatically suggest booking
+   - When asked, provide helpful information about seeing a doctor
 
 5. SAFETY & GUARDRAILS:
    - RED FLAGS (seek immediate care): chest pain, difficulty breathing, severe bleeding, sudden severe headache, confusion, loss of consciousness, severe abdominal pain, signs of stroke
@@ -195,16 +196,9 @@ Be warm, thorough, and safety-focused."""
     
     def _should_offer_booking(self, response: str, severity: str) -> bool:
         """Determine if appointment booking should be offered"""
-        response_lower = response.lower()
-        
-        # Offer booking if medium/high severity or doctor mentioned
-        booking_triggers = [
-            'see a doctor', 'consult', 'medical attention', 'appointment',
-            'visit doctor', 'healthcare provider'
-        ]
-        
-        return (severity in ['medium', 'high'] or 
-                any(trigger in response_lower for trigger in booking_triggers))
+        # Only offer booking if explicitly requested by user
+        # Don't auto-suggest based on severity
+        return False
     
     def _assess_severity(self, response: str) -> str:
         """Assess severity from response"""
