@@ -205,6 +205,8 @@ Be warm, thorough, and safety-focused."""
         
         return (severity in ['medium', 'high'] or 
                 any(trigger in response_lower for trigger in booking_triggers))
+    
+    def _assess_severity(self, response: str) -> str:
         """Assess severity from response"""
         response_lower = response.lower()
         
